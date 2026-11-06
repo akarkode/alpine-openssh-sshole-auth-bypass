@@ -155,6 +155,35 @@ passwd -l <username>
 | Copy strings from static C library buffers | Shared static buffers in standard libraries get clobbered silently |
 | Disable password authentication by default on servers | If passwords cannot be sent, password-handling bugs cannot be reached |
 
+## Try it in your own lab
+
+The best way to really understand a vulnerability like this is to see it happen in front of you. 
+
+I packaged the entire reproduction setup into a self-contained, isolated Docker environment. You can spin it up locally in less than a minute, run the automated payload boundary tests, test your own manual SSH connections, and verify how the patched version stops the bypass in its tracks.
+
+You can grab the full lab and scripts from the repository here:
+
+👉 **[akarkode/alpine-openssh-sshole-auth-bypass](https://github.com/akarkode/alpine-openssh-sshole-auth-bypass)**
+
+All you need is Docker:
+
+```bash
+git clone https://github.com/akarkode/alpine-openssh-sshole-auth-bypass.git
+cd alpine-openssh-sshole-auth-bypass/lab
+./run.sh
+```
+
+## References
+
+For those interested in digging into the raw advisories, CVE records, and original source commits:
+
+* **CVE Record:** [CVE-2026-123158 on NVD](https://nvd.nist.gov/vuln/detail/CVE-2026-123158) and [CVE.org](https://www.cve.org/CVERecord?id=CVE-2026-123158)
+* **Alpine Linux Advisory:** [OpenSSH password authentication bypass (2026-11-05)](https://alpinelinux.org/posts/2026-11-05-openssh-password-authentication-bypass/)
+* **OpenSSH Announcement:** [OpenSSH 10.6p2 Release Notes](https://www.openssh.com/txt/release-10.6p2)
+* **Upstream Fix Commit:** [OpenSSH Portable Commit 4353fdc](https://github.com/openssh/openssh-portable/commit/4353fdc43ef646c43a8dda7025cc1a898caf1482)
+* **Underlying Logic:** [musl libc crypt_sha512.c source](https://git.musl-libc.org/cgit/musl/tree/src/crypt/crypt_sha512.c) and [CVE-2016-6210 timing disclosure](https://nvd.nist.gov/vuln/detail/CVE-2016-6210)
+* **Community Research & PoC:** [schappim/sshole-audit](https://github.com/schappim/sshole-audit)
+
 ## The takeaway
 
 Security bugs do not always come from complex zero-days or careless mistakes.
