@@ -80,9 +80,14 @@ cd lab
 
 ```bash
 ssh -p 2222 victim@127.0.0.1
-# Prompt 1: Type 300 'A' characters -> Permission denied (buffer clobbered)
-# Prompt 2: Type 300 'A' characters -> Accepted! Shell access granted.
+# Prompt 1: Type 300 'A' characters (A*300x) -> Permission denied (buffer clobbered)
+# Prompt 2: Type 300 'A' characters (A*300x) -> Accepted! Shell access granted.
 ```
+
+### Reproduction Evidence
+
+![Manual Interactive Reproduction Evidence](assets/evidence.png)
+*Terminal session verifying authentication bypass on `victim@127.0.0.1` after submitting the 300-byte password string (`A*300x`), showing successful shell access as `uid=1001(victim)`.*
 
 ### Verifying the Fix
 
