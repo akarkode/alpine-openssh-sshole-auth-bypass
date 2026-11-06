@@ -29,17 +29,18 @@ The flaw results from the intersection of three components:
 alpine-openssh-sshole-auth-bypass/
 ├── article.md            # Comprehensive security research report
 ├── README.md             # Project overview & quick reproduction guide
-├── cover.png             # Cover illustration with CVE badge (PNG)
+├── cover.png             # Cover illustration with CVE badge & hacker icon (PNG)
 ├── cover.svg             # Vector source for cover
-├── Dockerfile.server     # Alpine 3.21 + vulnerable openssh-server
-├── Dockerfile.client     # Exploit testing client container
-├── sshd_config           # Research server OpenSSH configuration
-├── entrypoint.sh         # Container provisioning (victim:*, donor:$6$)
-├── exploit.sh            # Automated boundary PoC (256/257/300/1024 bytes)
-├── run.sh                # End-to-end execution script
-├── verify-fix.sh         # A/B verification script against fixed package
-└── assets/
-    └── Screenshot_2026-11-06_09-36-25.png # Terminal reproduction evidence
+├── assets/
+│   └── evidence.png      # Terminal reproduction screenshot evidence
+└── lab/
+    ├── server.Dockerfile # Alpine 3.21 + vulnerable openssh-server
+    ├── client.Dockerfile # Exploit testing client container
+    ├── sshd.conf         # Research server OpenSSH configuration
+    ├── entrypoint.sh     # Container provisioning (victim:*, donor:$6$)
+    ├── exploit.sh        # Automated boundary PoC (256/257/300/1024 bytes)
+    ├── run.sh            # End-to-end execution script
+    └── verify.sh         # A/B verification script against fixed package
 ```
 
 ## Quick Reproduction
@@ -48,6 +49,7 @@ Run the lab in an isolated local Docker container:
 
 ```bash
 # Build and run the vulnerable server and exploit test
+cd lab
 ./run.sh
 ```
 
@@ -85,7 +87,8 @@ ssh -p 2222 victim@127.0.0.1
 ### Verifying the Fix
 
 ```bash
-./verify-fix.sh
+cd lab
+./verify.sh
 ```
 
 ## Mitigation

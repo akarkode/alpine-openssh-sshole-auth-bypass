@@ -8,10 +8,10 @@ SERVER="sshole-server"
 CLIENT="sshole-client"
 
 echo "[*] Building vulnerable server image (OpenSSH 9.9p2 + musl, no PAM)..."
-docker build -q -t "$SERVER" -f "$DIR/Dockerfile.server" "$DIR"
+docker build -q -t "$SERVER" -f "$DIR/server.Dockerfile" "$DIR"
 
 echo "[*] Building client image..."
-docker build -q -t "$CLIENT" -f "$DIR/Dockerfile.client" "$DIR"
+docker build -q -t "$CLIENT" -f "$DIR/client.Dockerfile" "$DIR"
 
 docker network create "$NET" >/dev/null 2>&1 || true
 docker rm -f "$SERVER" >/dev/null 2>&1 || true

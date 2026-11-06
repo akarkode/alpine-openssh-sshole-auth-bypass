@@ -175,7 +175,7 @@ The test systematically stepped through boundary conditions:
 
 During the interactive reproduction, I initiated an SSH connection to `victim@127.0.0.1:2222`:
 
-![Terminal Authentication Bypass Evidence](assets/Screenshot_2026-11-06_09-36-25.png)
+![Terminal Authentication Bypass Evidence](assets/evidence.png)
 *Figure 1: Manual interactive verification of CVE-2026-123158 showing connection to `victim@127.0.0.1`, the initial rejection due to static buffer clobbering, the second identical password entry (`A*300x`), and the resulting shell session confirming `uid=1001(victim)`.*
 
 In Figure 1, the terminal shows the exact sequence:
@@ -236,7 +236,7 @@ When tested against an OpenSSH build utilizing `libpam` and `UsePAM yes`:
 
 The reproduction lab was automated using Docker. Below are the core components used to verify the flaw.
 
-### Docker Environment (`Dockerfile.server`)
+### Docker Environment (`lab/server.Dockerfile`)
 
 ```dockerfile
 FROM alpine:3.21
@@ -256,7 +256,7 @@ RUN apk add --no-cache curl \
  && apk del curl \
  && rm -rf /tmp/apks /var/cache/apk/*
 
-COPY sshd_config /etc/ssh/sshd_config
+COPY sshd.conf /etc/ssh/sshd_config
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
@@ -264,7 +264,7 @@ EXPOSE 22
 CMD ["/entrypoint.sh"]
 ```
 
-### Server Entrypoint (`entrypoint.sh`)
+### Server Entrypoint (`lab/entrypoint.sh`)
 
 ```bash
 #!/bin/sh
@@ -283,7 +283,7 @@ sed -i 's|^victim:[^:]*:|victim:*:|' /etc/shadow
 exec /usr/sbin/sshd -D -e
 ```
 
-### Exploit Harness (`exploit.sh`)
+### Exploit Harness (`lab/exploit.sh`)
 
 ```bash
 #!/bin/sh
@@ -335,7 +335,7 @@ In **OpenSSH 10.6p2** and the Alpine backport patch (`openssh-server-9.9_p2-r1`)
 2. **Safe Duplication of Shadow Strings:**
    OpenSSH now duplicates strings returned by `getspnam()` via `xstrdup()`, preventing musl's internal static buffer reuse from corrupting pointers.
 
-I verified the remediation using `verify-fix.sh` against `openssh-server-9.9_p2-r1`:
+I verified the remediation using `lab/verify.sh` against `openssh-server-9.9_p2-r1`:
 ```text
 [*] Running the same exploit against the FIXED server...
 >>> 257 bytes (crypt() returns '*')            rejected  (ssh rc=255)

@@ -9,10 +9,10 @@ FIXED="sshole-server-fixed"
 
 echo "[*] Building FIXED server image (openssh 9.9_p2-r1)..."
 docker build -q --build-arg OPENSSH_VER=9.9_p2-r1 \
-    -t "$FIXED" -f "$DIR/Dockerfile.server" "$DIR"
+    -t "$FIXED" -f "$DIR/server.Dockerfile" "$DIR"
 
 echo "[*] Building client image..."
-docker build -q -t sshole-client -f "$DIR/Dockerfile.client" "$DIR"
+docker build -q -t sshole-client -f "$DIR/client.Dockerfile" "$DIR"
 
 docker network create "$NET" >/dev/null 2>&1 || true
 docker rm -f "$FIXED" >/dev/null 2>&1 || true

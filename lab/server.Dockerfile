@@ -18,7 +18,7 @@ RUN apk add --no-cache curl \
  && apk del curl \
  && rm -rf /tmp/apks /var/cache/apk/*
 
-COPY sshd_config /etc/ssh/sshd_config
+COPY sshd.conf /etc/ssh/sshd_config
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
