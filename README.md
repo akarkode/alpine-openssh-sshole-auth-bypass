@@ -1,16 +1,20 @@
-# Alpine Linux OpenSSH Password Authentication Bypass ("sshole") Lab & Research
+# Alpine Linux OpenSSH Password Authentication Bypass (CVE-2026-123158 / "sshole") Lab & Research
 
 ![Cover](cover.png)
 
-This repository contains the full vulnerability research report, laboratory reproduction scripts, and proof-of-concept environment for the Alpine Linux OpenSSH authentication bypass vulnerability ("sshole") disclosed on November 5, 2026.
+This repository contains the full vulnerability research report, laboratory reproduction scripts, and proof-of-concept environment for the Alpine Linux OpenSSH authentication bypass vulnerability (**CVE-2026-123158**, CVSS 3.1 8.1 High, dubbed "sshole") disclosed on November 5, 2026.
 
 ## Research Summary
 
+* **Vulnerability Identifier:** [CVE-2026-123158](https://nvd.nist.gov/vuln/detail/CVE-2026-123158) ([CVE.org Record](https://www.cve.org/CVERecord?id=CVE-2026-123158))
+* **CVSS v3.1 Score:** **8.1 High** (`CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H`, CWE-394)
 * **Discovered Issue:** Arbitrary password authentication bypass for accounts whose `/etc/shadow` password field is exactly `*`.
 * **Affected Platform:** Alpine Linux (all versions with default non-PAM OpenSSH $\le$ 9.9p2).
 * **Vulnerable Component:** `openssh-server-9.9_p2-r0` running on musl libc without PAM.
 * **Remediation:** Fixed in Alpine `openssh-server-9.9_p2-r1` and upstream `OpenSSH 10.6p2`.
 * **Exploitation Vector:** Any password of length 257 to 1024 bytes (e.g. `A*300x`).
+
+> **Note on Input Boundary:** While the CVE description cites 256–1024 characters, empirical testing in this lab demonstrates that musl libc hashes 256-byte inputs normally (`key_len > KEY_MAX`); only inputs of **257 to 1024 bytes** return `"*"` to trigger the authentication bypass.
 
 ## Vulnerability Mechanism
 
@@ -25,7 +29,7 @@ The flaw results from the intersection of three components:
 alpine-openssh-sshole-auth-bypass/
 ├── article.md            # Comprehensive security research report
 ├── README.md             # Project overview & quick reproduction guide
-├── cover.png             # Cover illustration (PNG)
+├── cover.png             # Cover illustration with CVE badge (PNG)
 ├── cover.svg             # Vector source for cover
 ├── Dockerfile.server     # Alpine 3.21 + vulnerable openssh-server
 ├── Dockerfile.client     # Exploit testing client container
@@ -100,6 +104,14 @@ ssh -p 2222 victim@127.0.0.1
    ```bash
    passwd -l <user>
    ```
+
+## References
+
+- NVD Record: <https://nvd.nist.gov/vuln/detail/CVE-2026-123158>
+- CVE.org Record: <https://www.cve.org/CVERecord?id=CVE-2026-123158>
+- Alpine Advisory: <https://alpinelinux.org/posts/2026-11-05-openssh-password-authentication-bypass/>
+- OpenSSH Release: <https://www.openssh.com/txt/release-10.6p2>
+- Fix Commit: <https://github.com/openssh/openssh-portable/commit/4353fdc43ef646c43a8dda7025cc1a898caf1482>
 
 ## Disclaimer
 

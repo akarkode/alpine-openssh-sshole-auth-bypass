@@ -1,13 +1,15 @@
 ---
-title: "The Asterisk Key: Breaking Alpine Linux OpenSSH via musl crypt Collision ('sshole')"
-summary: "How an empty password placeholder ('*'), a borrowed salt mechanism, and a 256-byte truncation quirk in musl libc aligned to grant arbitrary password authentication in Alpine Linux OpenSSH."
-tags: [Security, Research, Vulnerability, Linux, OpenSSH]
+title: "The Asterisk Key: Breaking Alpine Linux OpenSSH via musl crypt Collision (CVE-2026-123158 / 'sshole')"
+summary: "How an empty password placeholder ('*'), a borrowed salt mechanism, and a 256-byte truncation quirk in musl libc aligned to grant arbitrary password authentication in Alpine Linux OpenSSH (CVE-2026-123158)."
+tags: [Security, Research, Vulnerability, Linux, OpenSSH, CVE-2026-123158]
 ---
 
-# The Asterisk Key: Breaking Alpine Linux OpenSSH via musl crypt Collision ("sshole")
+# The Asterisk Key: Breaking Alpine Linux OpenSSH via musl crypt Collision (CVE-2026-123158 / "sshole")
 
 **Researcher:** Aldi ([akarkode](https://github.com/akarkode))  
 **Date of Research:** November 6, 2026  
+**Vulnerability Identifier:** [CVE-2026-123158](https://nvd.nist.gov/vuln/detail/CVE-2026-123158) ([CVE.org Record](https://www.cve.org/CVERecord?id=CVE-2026-123158))  
+**CVSS v3.1 Score:** **8.1 High** (`CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H`, CWE-394)  
 **Reference Advisory:** [Alpine Linux Security Advisory (2026-11-05)](https://alpinelinux.org/posts/2026-11-05-openssh-password-authentication-bypass/)  
 **Fix Release:** [OpenSSH 10.6p2](https://www.openssh.com/txt/release-10.6p2) / Alpine `openssh-server-9.9_p2-r1`  
 **GitHub Repository:** [akarkode/alpine-openssh-sshole-auth-bypass](https://github.com/akarkode/alpine-openssh-sshole-auth-bypass)
@@ -20,9 +22,9 @@ tags: [Security, Research, Vulnerability, Linux, OpenSSH]
 
 In password security, we are taught that disabling a password field or setting it to a non-hash token renders password authentication impossible. For decades across UNIX systems, setting an account's password field in `/etc/shadow` to `*` or `!` has been the standard way to denote "no password login permitted."
 
-On November 5, 2026, Alpine Linux published a high-severity advisory disclosing an authentication bypass dubbed **"sshole"**. Under specific conditions on Alpine Linux (and other musl-based distributions running non-PAM OpenSSH), **any password between 257 and 1024 bytes long authenticates successfully against accounts whose shadow field is exactly `*`**.
+On November 5, 2026, Alpine Linux published a high-severity advisory disclosing an authentication bypass dubbed **"sshole"**, assigned identifier **CVE-2026-123158** (CVSS 3.1 8.1 High). Under specific conditions on Alpine Linux (and other musl-based distributions running non-PAM OpenSSH), **any password between 257 and 1024 bytes long authenticates successfully against accounts whose shadow field is exactly `*`**.
 
-In this report, I document my deep technical investigation, reproduction methodology, proof of concept, failed scenarios, and the precise libc/daemon interaction that caused this vulnerability.
+In this report, I document my deep technical investigation, reproduction methodology, proof of concept, failed scenarios, the subtle boundary difference between the CVE description and actual libc mechanics, and the precise libc/daemon interaction that caused this vulnerability.
 
 ---
 
@@ -30,7 +32,7 @@ In this report, I document my deep technical investigation, reproduction methodo
 
 When I first read the advisory announcement, it seemed almost counterintuitive: how could a non-hash placeholder string like `*` ever match the cryptographic digest of an incoming plaintext password? Cryptographic hash functions like SHA-512 crypt (`$6$`) produce 86-character digests preceded by algorithm identifiers and salt.
 
-However, software security is not just about abstract mathematics; it is about the physical implementation of specifications across libraries and daemons. In this case, three independent design decisions and optimizations spanning 14 years intersected:
+However, software security is not just about abstract mathematics; it is about the physical implementation of specifications across libraries and daemons. In this case, three independent design decisions and optimizations spanning 14 years intersected to create CVE-2026-123158:
 
 1. **A Denial-of-Service guard in musl libc (2012):** musl caps `$5$` (SHA-256) and `$6$` (SHA-512) inputs to `KEY_MAX = 256` bytes, returning the literal error indicator `"*"` when exceeded.
 2. **A user-enumeration defense in OpenSSH (CVE-2016-6210):** When authenticating an account with an invalid hash like `*`, OpenSSH borrows a valid salt from another existing account (`pick_salt()`) to ensure consistent CPU timing.
@@ -58,11 +60,18 @@ The vulnerability allows remote unauthenticated attackers to authenticate as any
 3. At least one user exists on the system with a valid `$5$` or `$6$` password hash to act as a "salt donor".
 4. The submitted password length is between **257 and 1024 bytes**.
 
+### CVE Record and Payload Length Clarification
+The published record for **CVE-2026-123158** notes an affected input range of **256–1024 characters**. However, during my empirical lab investigation, I observed a critical technical distinction:
+* In musl libc's source code, the condition is `key_len > KEY_MAX` (where `KEY_MAX` is 256).
+* An input of **exactly 256 bytes** is still processed and hashed normally by musl, producing an 86-character digest that fails to match `"*"`.
+* Only inputs of **257 bytes and above** trigger the early exit returning `"*"`.
+* Therefore, the exact workable exploit payload boundary is **257–1024 bytes**, capped at 1024 by OpenSSH's `MAX_PASSWORD_LEN`.
+
 ### Impact Summary
 
 | Vector | Requirement | Severity |
 | :--- | :--- | :--- |
-| **Authentication Bypass** | Network access to SSH port + reachability of an account with shadow field `*` | **Critical** (CVSS ~9.8 if root or privileged users reachable) |
+| **Authentication Bypass (CVE-2026-123158)** | Network access to SSH port + reachability of an account with shadow field `*` + presence of a `$5$/$6$` salt donor | **8.1 High** (CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H) |
 | **Privilege Escalation** | Direct shell access as `root`, `alpine` (with sudo/doas), or service accounts | **High** |
 
 ---
@@ -104,14 +113,14 @@ When an attacker targets account `victim` (with shadow hash `"*"`):
 2. OpenSSH inspects victim's hash (`"*"`). It detects this is not a valid salt, so it calls `pick_salt()`.
 3. `pick_salt()` finds user `donor` with hash `$6$abcdefgh$...` and uses donor's salt `$6$abcdefgh$`.
 4. OpenSSH calls `xcrypt(P, "$6$abcdefgh$")`.
-5. musl libc evaluates `P`. Because `strlen(P) > 256`, musl halts and returns `"*"`.
+5. musl libc evaluates $P$. Because `strlen(P) > 256`, musl halts and returns `"*"`.
 6. OpenSSH compares the result:
    $$\text{strcmp}(\text{"*"}, \text{pw\_password}) \implies \text{strcmp}(\text{"*"}, \text{"*"}) == 0$$
 7. OpenSSH believes the password is correct and grants an authenticated shell session.
 
 ```
 +-------------------------------------------------------------------------+
-|                        The Collision Equation                           |
+|                  The CVE-2026-123158 Collision Equation                 |
 |                                                                         |
 | Password (257-1024 B) + Borrowed Salt ($6$)                             |
 |          |                                                              |
@@ -167,7 +176,7 @@ The test systematically stepped through boundary conditions:
 During the interactive reproduction, I initiated an SSH connection to `victim@127.0.0.1:2222`:
 
 ![Terminal Authentication Bypass Evidence](assets/Screenshot_2026-11-06_09-36-25.png)
-*Figure 1: Manual interactive verification showing connection to `victim@127.0.0.1`, the initial rejection due to static buffer clobbering, the second identical password entry (`A*300x`), and the resulting shell session confirming `uid=1001(victim)`.*
+*Figure 1: Manual interactive verification of CVE-2026-123158 showing connection to `victim@127.0.0.1`, the initial rejection due to static buffer clobbering, the second identical password entry (`A*300x`), and the resulting shell session confirming `uid=1001(victim)`.*
 
 In Figure 1, the terminal shows the exact sequence:
 1. `victim@127.0.0.1's password:` $\rightarrow$ input: `A*300x` (redacted 300-byte string).
@@ -310,7 +319,7 @@ DISPLAY=:0 ssh $SSH_OPTS -p "$PORT" "$VICTIM@$HOST" 'id; hostname'
 
 ## 10. Technical Analysis: The Fix
 
-In **OpenSSH 10.6p2** and the Alpine backport patch (`openssh-server-9.9_p2-r1`), two fundamental remediations were implemented:
+In **OpenSSH 10.6p2** and the Alpine backport patch (`openssh-server-9.9_p2-r1`), two fundamental remediations were implemented (Git commit `4353fdc43ef646c43a8dda7025cc1a898caf1482`):
 
 1. **Enforcing Minimum Password Hash Length (`MIN_PASSWORD_HASH_LEN`):**
    OpenSSH introduced an explicit check in `sys_auth_passwd()`:
@@ -376,7 +385,7 @@ sequenceDiagram
 
 ## 12. Impact Assessment
 
-The severity of this issue depends heavily on deployment specifics:
+The severity of **CVE-2026-123158** (CVSS 8.1 High: `AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H`) reflects the specific environmental pre-conditions required:
 
 1. **Default Alpine Linux Installations:**
    * In Alpine $\ge$ 3.16, `root` has `*` in `/etc/shadow`. However, the default `sshd_config` sets:
@@ -433,8 +442,11 @@ Cross-reference accepted logins with accounts that should never possess valid pa
 
 ## 14. References
 
+* **NVD CVE Record:** [CVE-2026-123158 Detail](https://nvd.nist.gov/vuln/detail/CVE-2026-123158)
+* **CVE.org Official Record:** [CVE-2026-123158](https://www.cve.org/CVERecord?id=CVE-2026-123158)
 * **Alpine Linux Advisory:** [OpenSSH Password Authentication Bypass (2026-11-05)](https://alpinelinux.org/posts/2026-11-05-openssh-password-authentication-bypass/)
 * **OpenSSH Official Announcement:** [OpenSSH 10.6p2 Release Notes](https://www.openssh.com/txt/release-10.6p2)
+* **OpenSSH Fix Commit:** [Git Commit 4353fdc](https://github.com/openssh/openssh-portable/commit/4353fdc43ef646c43a8dda7025cc1a898caf1482)
 * **CVE-2016-6210 Analysis:** [OpenSSH User Enumeration via Timing Differences](https://nvd.nist.gov/vuln/detail/CVE-2016-6210)
 * **musl libc Git Repository:** [`crypt_sha512.c` KEY_MAX boundary source](https://git.musl-libc.org/cgit/musl/tree/src/crypt/crypt_sha512.c)
 * **Community Research & PoC:** [schappim/sshole-audit](https://github.com/schappim/sshole-audit)
