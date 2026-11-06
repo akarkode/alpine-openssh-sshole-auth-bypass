@@ -16,7 +16,10 @@ This repository contains the full vulnerability research report, laboratory repr
 
 > **Note on Input Boundary:** While the CVE description cites 256–1024 characters, empirical testing in this lab demonstrates that musl libc hashes 256-byte inputs normally (`key_len > KEY_MAX`); only inputs of **257 to 1024 bytes** return `"*"` to trigger the authentication bypass.
 
-## Vulnerability Mechanism
+## Vulnerability Mechanism & Flow
+
+![How SSHOLE Happens Flow](assets/flow.gif)
+*Figure: Step-by-step mechanism of CVE-2026-123158 illustrating how input lengths, OpenSSH salt borrowing, and musl error returns align into an arbitrary authentication bypass.*
 
 The flaw results from the intersection of three components:
 1. **musl libc `KEY_MAX = 256`:** When calculating SHA-512 crypt (`$6$`), musl rejects keys longer than 256 bytes and returns the literal string `"*"`.
@@ -32,7 +35,8 @@ alpine-openssh-sshole-auth-bypass/
 ├── cover.png             # Cover illustration with CVE badge & hacker icon (PNG)
 ├── cover.svg             # Vector source for cover
 ├── assets/
-│   └── evidence.png      # Terminal reproduction screenshot evidence
+│   ├── evidence.png      # Terminal reproduction screenshot evidence
+│   └── flow.gif          # Clean animated walkthrough of the vulnerability flow
 └── lab/
     ├── server.Dockerfile # Alpine 3.21 + vulnerable openssh-server
     ├── client.Dockerfile # Exploit testing client container
