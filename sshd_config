@@ -1,0 +1,22 @@
+Port 22
+ListenAddress 0.0.0.0
+
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_rsa_key
+
+# Conditions for the bypass:
+#   * built WITHOUT PAM (Alpine's openssh-server; see Dockerfile.server)
+#   * PasswordAuthentication yes (upstream default)
+PasswordAuthentication yes
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+
+PermitRootLogin no
+AllowUsers victim donor
+
+PrintMotd no
+Subsystem sftp internal-sftp
+LogLevel VERBOSE
+
+# Lab only: don't rate-limit the client IP between rapid test connections.
+PerSourcePenalties no
